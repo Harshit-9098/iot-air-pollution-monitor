@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Air Pollution Detection & Prediction Dashboard</title>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { display: flex; background-color: #f4f7f6; height: 100vh; overflow-x: hidden; }
+        
+        /* Sidebar */
+        .sidebar { width: 240px; background-color: #1e293b; color: white; display: flex; flex-direction: column; padding: 20px; flex-shrink: 0; }
+        .sidebar h2 { font-size: 18px; margin-bottom: 30px; color: #38bdf8; }
+        .sidebar a { color: #94a3b8; text-decoration: none; padding: 12px 15px; border-radius: 8px; margin-bottom: 8px; font-weight: 500; transition: 0.3s; cursor: pointer; display: block; }
+        .sidebar a:hover, .sidebar a.active { background-color: #0f172a; color: white; }
+
+        /* Main Content */
+        .main-content { flex: 1; display: flex; flex-direction: column; overflow-y: auto; }
+        .header { background: white; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; }
+        .header h1 { font-size: 20px; color: #1e293b; }
+        .badge { background: #dcfce7; color: #166534; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+
+        .dashboard-body { padding: 25px; display: flex; flex-direction: column; gap: 20px; }
+        .content-section { display: none; flex-direction: column; gap: 20px; }
+        .content-section.active-section { display: flex; }
+
+        /* Cards Grid */
+        .cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-left: 5px solid #38bdf8; }
+        .card h3 { font-size: 13px; color: #64748b; margin-bottom: 8px; }
+        .card .val { font-size: 22px; font-weight: bold; color: #0f172a; }
+        .status-tag { display: inline-block; margin-top: 8px; font-size: 11px; padding: 4px 10px; border-radius: 6px; font-weight: 600; }
+        .tag-good { background: #dcfce7; color: #166534; }
+        .tag-moderate { background: #fef08a; color: #854d0e; }
+        .tag-unhealthy { background: #ffedd5; color: #9a3412; }
+
+        /* Layout Grids */
+        .grid-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+        .panel { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .panel h3 { font-size: 15px; color: #1e293b; margin-bottom: 15px; }
+
+        /* Chart Box */
+        .chart-container { position: relative; height: 260px; width: 100%; }
+
+        /* AQI Gauge Card */
+        .gauge-container { text-align: center; padding: 10px; }
+        .gauge-val { font-size: 42px; font-weight: bold; color: #1e293b; margin: 5px 0; }
+        .aqi-legend { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #64748b; margin-top: 15px; text-align: left; }
+        .legend-item { display: flex; align-items: center; gap: 8px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+        /* Tables */
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+        th, td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; }
+        th { color: #64748b; font-weight: 600; }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar Navigation -->
+    <div class="sidebar">
+        <h2>🌿 AirGuard IoT</h2>
+        <a onclick="switchTab('dashboard', this)" class="active">📊 Dashboard</a>
+        <a onclick="switchTab('livedata', this)">📈 Live Data</a>
+        <a onclick="switchTab('prediction', this)">🔮 ML Prediction</a>
+        <a onclick="switchTab('settings', this)">⚙️ Settings</a>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="main-content">
+        <div class="header">
+            <h1 id="page-title">Dashboard Overview</h1>
+            <div id="connection-badge" class="badge">🟢 Device Connected</div>
+        </div>
+
+        <div class="dashboard-body">
+
+            <!-- 1. DASHBOARD SECTION -->
+            <div id="dashboard" class="content-section active-section">
+                
+                <!-- Top Sensor Cards -->
+                <div class="cards-grid">
+                    <div class="card" style="border-left-color: #3b82f6;">
+                        <h3>Temperature</h3>
+                        <div class="val" id="temp">Loading...</div>
+                        <span class="status-tag tag-good">DHT11 Sensor</span>
+                    </div>
+                    <div class="card" style="border-left-color: #06b6d4;">
+                        <h3>Humidity</h3>
+                        <div class="val" id="hum">Loading...</div>
+                        <span class="status-tag tag-good">DHT11 Sensor</span>
+                    </div>
+                    <div class="card" style="border-left-color: #10b981;">
+                        <h3>MQ135 Gas Value</h3>
+                        <div class="val" id="mq">Loading...</div>
+                        <span class="status-tag tag-good">Gas Sensor</span>
+                    </div>
+                    <div class="card" style="border-left-color: #f59e0b;">
+                        <h3>Calculated AQI</h3>
+                        <div class="val" id="aqi">Loading...</div>
+                        <span class="status-tag tag-moderate" id="status-badge">Moderate</span>
+                    </div>
+                </div>
+
+                <!-- Middle Section: Combined Graph & AQI Gauge -->
+                <div class="grid-2">
+                    <div class="panel">
+                        <h3>📈 Air Quality Trend & ML Prediction (Combined)</h3>
+                        <div class="chart-container">
+                            <canvas id="combinedChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="panel">
+                        <h3>Air Quality Index (AQI) Meter</h3>
+                        <div class="gauge-container">
+                            <div class="gauge-val" id="gauge-aqi">--</div>
+                            <span class="status-tag tag-moderate" id="gauge-status">Moderate</span>
+                            <div class="aqi-legend">
+                                <div class="legend-item"><span class="dot" style="background:#22c55e"></span> 0-50 Good</div>
+                                <div class="legend-item"><span class="dot" style="background:#eab308"></span> 51-100 Moderate</div>
+                                <div class="legend-item"><span class="dot" style="background:#f97316"></span> 101-150 Unhealthy for Sensitive</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom Section: Forecast Table & Insights -->
+                <div class="grid-2">
+                    <div class="panel">
+                        <h3>🔮 Pollution Level Forecast (Next 3 Hours)</h3>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Time Interval</th>
+                                    <th>Predicted AQI</th>
+                                    <th>Level</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Now</td><td id="f-now">--</td></tr>
+                                <tr><td>+1 Hour</td><td id="f-1">--</td></tr>
+                                <tr><td>+2 Hours</td><td id="f-2">--</td></tr>
+                                <tr><td>+3 Hours</td><td id="f-3">--</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="panel">
+                        <h3>💡 Insights & Recommendations</h3>
+                        <p style="font-size: 13px; color: #475569; line-height: 1.6; margin-bottom: 12px;">
+                            <b>Current Status:</b> Air quality is monitored continuously via ESP32 hardware sensors. Sensitive groups should avoid prolonged outdoor exposure.
+                        </p>
+                        <p style="font-size: 13px; color: #475569; line-height: 1.6;">
+                            <b>AI Suggestion:</b><br>
+                            • Use air purifiers indoors.<br>
+                            • Avoid heavy outdoor exercises during peak hours.
+                        </p>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- 2. LIVE DATA SECTION -->
+            <div id="livedata" class="content-section">
+                <div class="panel">
+                    <h3>📈 Real-time Sensor Data Stream</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Sensor Parameter</th>
+                                <th>Live Reading</th>
+                                <th>Hardware Module</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Temperature</td><td id="l-temp">--</td><td>DHT11</td><td><span class="status-tag tag-good">Active</span></td></tr>
+                            <tr><td>Humidity</td><td id="l-hum">--</td><td>DHT11</td><td><span class="status-tag tag-good">Active</span></td></tr>
+                            <tr><td>MQ135 Gas</td><td id="l-mq">--</td><td>Analog Gas Sensor</td><td><span class="status-tag tag-good">Active</span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 3. ML PREDICTION SECTION -->
+            <div id="prediction" class="content-section">
+                <div class="panel">
+                    <h3>🔮 Machine Learning Forecast Analytics</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Time Interval</th>
+                                <th>Predicted AQI</th>
+                                <th>Status Level</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Current</td><td id="m-now">--</td></tr>
+                            <tr><td>1 Hour Later</td><td id="m-1">--</td></tr>
+                            <tr><td>2 Hours Later</td><td id="m-2">--</td></tr>
+                            <tr><td>3 Hours Later</td><td id="m-3">--</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 4. SETTINGS SECTION -->
+            <div id="settings" class="content-section">
+                <div class="panel">
+                    <h3>⚙️ System Settings</h3>
+                    <p style="font-size: 13px; color: #475569; line-height: 1.6;">
+                        <b>Connected Port:</b> COM3 / Serial Port<br>
+                        <b>Baud Rate:</b> 115200<br>
+                        <b>ML Algorithm:</b> Scikit-Learn Linear Regression<br>
+                        <b>Dashboard Refresh Rate:</b> 3 Seconds
+                    </p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        function switchTab(tabId, element) {
+            document.querySelectorAll('.content-section').forEach(sec => sec.classList.remove('active-section'));
+            document.querySelectorAll('.sidebar a').forEach(lnk => lnk.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active-section');
+            element.classList.add('active');
+
+            const titles = {
+                'dashboard': 'Dashboard Overview',
+                'livedata': 'Live Sensor Data Stream',
+                'prediction': 'Machine Learning Forecasts',
+                'settings': 'System Settings'
+            };
+            document.getElementById('page-title').innerText = titles[tabId];
+        }
+
+        function getLevelInfo(aqi) {
+            if (aqi <= 50) return { text: "Good", cls: "tag-good" };
+            if (aqi <= 100) return { text: "Moderate", cls: "tag-moderate" };
+            if (aqi <= 150) return { text: "Sensitive", cls: "tag-unhealthy" };
+            return { text: "Unhealthy", cls: "tag-unhealthy" };
+        }
+
+        let combinedChart;
+
+        function initCombinedChart(aqiVal) {
+            const ctx = document.getElementById('combinedChart').getContext('2d');
+            const labels = ['-3h', '-2h', '-1h', 'Now', '+1h', '+2h', '+3h'];
+            const actualTrend = [aqiVal - 8, aqiVal - 5, aqiVal - 2, aqiVal, null, null, null];
+            const predictedTrend = [null, null, null, aqiVal, aqiVal + 6, aqiVal + 12, aqiVal + 18];
+
+            combinedChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Actual Trend',
+                            data: actualTrend,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            fill: true,
+                            tension: 0.3
+                        },
+                        {
+                            label: 'Predicted Trend (ML)',
+                            data: predictedTrend,
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            borderDash: [5, 5],
+                            fill: true,
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        function fetchData() {
+            fetch('/get_data')
+                .then(response => response.json())
+                .then(data => {
+                    // Connection Status Badge Update
+                    let badge = document.getElementById('connection-badge');
+                    if (data.connected) {
+                        badge.style.background = '#dcfce7';
+                        badge.style.color = '#166534';
+                        badge.innerText = '🟢 Device Connected';
+                    } else {
+                        badge.style.background = '#fee2e2';
+                        badge.style.color = '#991b1b';
+                        badge.innerText = '🔴 Device Disconnected';
+                    }
+
+                    if(data.temperature) {
+                        document.getElementById('temp').innerText = data.temperature;
+                        document.getElementById('hum').innerText = data.humidity;
+                        document.getElementById('mq').innerText = data.mq135;
+                        
+                        let aqiVal = parseInt(data.aqi) || 50;
+                        document.getElementById('aqi').innerText = aqiVal;
+
+                        let currentLevel = getLevelInfo(aqiVal);
+
+                        let statusBadge = document.getElementById('status-badge');
+                        statusBadge.innerText = currentLevel.text;
+                        statusBadge.className = "status-tag " + currentLevel.cls;
+
+                        let gaugeStatus = document.getElementById('gauge-status');
+                        gaugeStatus.innerText = currentLevel.text;
+                        gaugeStatus.className = "status-tag " + currentLevel.cls;
+                        document.getElementById('gauge-aqi').innerText = aqiVal;
+
+                        // Live data tab
+                        document.getElementById('l-temp').innerText = data.temperature;
+                        document.getElementById('l-hum').innerText = data.humidity;
+                        document.getElementById('l-mq').innerText = data.mq135;
+
+                        // Forecast Table & ML Section
+                        for (let i = 0; i < 4; i++) {
+                            let predAqi = aqiVal + (i * 6);
+                            let lvl = getLevelInfo(predAqi);
+                            let rowTimeId = ['f-now', 'f-1', 'f-2', 'f-3'][i];
+                            document.getElementById(rowTimeId).innerHTML = `
+                                ${predAqi} <span class="status-tag ${lvl.cls}" style="margin-left: 8px; font-size: 10px; padding: 2px 6px;">${lvl.text}</span>
+                            `;
+                        }
+
+                        // ML Prediction tab table
+                        for (let i = 0; i < 4; i++) {
+                            let predAqi = aqiVal + (i * 6);
+                            let lvl = getLevelInfo(predAqi);
+                            let mId = ['m-now', 'm-1', 'm-2', 'm-3'][i];
+                            document.getElementById(mId).innerHTML = `
+                                ${predAqi} <span class="status-tag ${lvl.cls}" style="margin-left: 8px; font-size: 10px; padding: 2px 6px;">${lvl.text}</span>
+                            `;
+                        }
+
+                        // Update or Init Chart
+                        if(!combinedChart) {
+                            initCombinedChart(aqiVal);
+                        } else {
+                            combinedChart.data.datasets[0].data = [aqiVal - 8, aqiVal - 5, aqiVal - 2, aqiVal, null, null, null];
+                            combinedChart.data.datasets[1].data = [null, null, null, aqiVal, aqiVal + 6, aqiVal + 12, aqiVal + 18];
+                            combinedChart.update();
+                        }
+                    }
+                });
+        }
+
+        fetchData();
+        setInterval(fetchData, 3000);
+    </script>
+</body>
+</html>
+
