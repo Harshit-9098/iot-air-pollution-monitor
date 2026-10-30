@@ -6,7 +6,7 @@ An end-to-end IoT micro-project built using an ESP32 microcontroller, MQ135 gas 
 ---
 
 ## 📊 Live Dashboard Preview
-[![Dashboard Preview](Screenshot2026-10-28 215732.png)](Screenshot2026-10-28 215732.png)
+[![Dashboard Preview](Screenshot%202026-10-28%20215732.png)](Screenshot%202026-10-28%20215732.png)
 
 ---
 
