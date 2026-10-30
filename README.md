@@ -7,7 +7,7 @@ An end-to-end IoT micro-project built using an ESP32 microcontroller, MQ135 gas 
 
 ## 📊 Live Dashboard Preview
 *(Aap yahan apne web dashboard ka screenshot image upload karke laga sakte hain)*
-![Dashboard Preview](dashboard_screenshot.png)
+![Dashboard Preview]("C:\Users\Harshit Gupta\Pictures\Screenshots\Screenshot 2026-10-28 215732.png")
 
 ---
 
